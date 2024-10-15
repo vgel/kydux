@@ -1,0 +1,5 @@
+.env
+.swp*
+node_modules/
+old/
+

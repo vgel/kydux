@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>kydux</title>
+    <style>
+        body {
+            font-family: monospace;
+            background-color: black;
+            margin: 0;
+            line-height: 1.5;
+            font-size: 125%;
+            overflow: hidden;
+        }
+
+        #container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <div id="display"></div>
+    </div>
+
+    <script>
+        const LINE_WIDTH = 80;
+        const MAX_LINES = 20;
+        const CONTEXT_SIZE = $$REPLACEME_CONTEXT_SIZE;
+
+        const display = document.getElementById('display');
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socket = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
+
+        function rerender(tokens) {
+            let max_non_status_lines = MAX_LINES - 1;
+            let lines = [[]];
+            let current_line_width = 0;
+            for (let i = 0; i < tokens.length; i++) {
+                const t = tokens[i];
+                const lp = {
+                    content: t.content.replace("\n", " § "),
+                    strength: t.raw_strength,
+                    in_context: i >= tokens.length - CONTEXT_SIZE,
+                };
+
+                if (current_line_width + lp.content.length > LINE_WIDTH) {
+                    lines.push([lp]);
+                    current_line_width = lp.content.length;
+                } else {
+                    lines[lines.length - 1].push(lp);
+                    current_line_width += lp.content.length;
+                }
+            }
+
+            lines = lines.slice(-max_non_status_lines);
+            console.log(lines);
+
+            // truncate token list
+            let tokens_to_keep = 0;
+            for (let line of lines) {
+                tokens_to_keep += line.length;
+            }
+            tokens = tokens.slice(-tokens_to_keep);
+
+            let html = `<div style="color: white">[ strength: ${tokens.at(-1).strength.toFixed(2)} ]</div>`;
+            for (let line of lines) {
+                for (let part of line) {
+                    const c = part.content.replace("<", "&lt;").replace(">", "&gt;");
+                    const is_bing = part.strength < 0;
+                    const strength = Math.abs(part.strength);
+
+                    const hue = is_bing ? 200 : 128; // blue : green
+                    const sat = 74 * strength;
+                    const lit = 100 - (100 - 49) * strength;
+                    const alf = part.in_context ? 1 : 0.5;
+                    html += `<span style="color: hsl(${hue}deg ${sat}% ${lit}% / ${alf})">${c}</span>`;
+                }
+                html += "<br>";
+            }
+            display.innerHTML = html;
+        }
+
+        const tokens = [];
+
+        socket.onmessage = function (event) {
+            tokens.push(JSON.parse(event.data));
+            rerender(tokens);
+        };
+
+        socket.onclose = function (event) {
+            console.log("closed", event);
+        };
+    </script>
+</body>
+
+</html>

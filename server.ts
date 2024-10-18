@@ -24,6 +24,10 @@ const { values: args } = parseArgs({
       type: "boolean",
       default: false,
     },
+    secret_url_file: {
+      type: "string",
+      default: "",
+    },
   },
   strict: false,
   allowPositionals: true,
@@ -34,7 +38,13 @@ if (!n_context) {
   throw new Error("n_context must be an integer!");
 }
 
-const secret_url = `/${crypto.randomBytes(32).toString("hex")}`;
+let secret_url: string;
+if (args.secret_url_file) {
+  const secret_url_file: string = args.secret_url_file.toString();
+  secret_url = await Bun.file(secret_url_file).text();
+} else {
+  secret_url = `/${crypto.randomBytes(32).toString("hex")}`;
+}
 
 const server = Bun.serve({
   async fetch(req, server) {

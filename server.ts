@@ -20,6 +20,10 @@ const { values: args } = parseArgs({
       type: "string",
       default: "python",
     },
+    print_command: {
+      type: "boolean",
+      default: false,
+    },
   },
   strict: false,
   allowPositionals: true,
@@ -35,14 +39,12 @@ const secret_url = `/${crypto.randomBytes(32).toString("hex")}`;
 const server = Bun.serve({
   async fetch(req, server) {
     const url = new URL(req.url);
-    console.log(req.method, url.pathname);
 
     if (url.pathname === "/")
       return new Response(
         await Bun.file("./server_interface.html")
           .text()
           .then((data) => {
-            console.log(data);
             return data.replace("$$REPLACEME_CONTEXT_SIZE", n_context.toString());
           }),
         {
@@ -78,21 +80,30 @@ const server = Bun.serve({
   },
 });
 
-let worker = null;
 if (args.python) {
-  worker = Bun.spawn([args.python.toString(), `${__dirname}/worker.py`], {
-    cwd: __dirname,
-    env: {
-      ...process.env,
-      N_CONTEXT: n_context.toString(),
-      LOG: args.log ? "1" : "",
-      MOCK_MODEL: args.mock_model ? "1" : "",
-      SECRET_URL: `http://localhost:${server.port}${secret_url}`,
-    },
-    onExit: () => {
-      server.stop(true);
-    },
-  });
+  const env = {
+    N_CONTEXT: n_context.toString(),
+    LOG: args.log ? "1" : "",
+    MOCK_MODEL: args.mock_model ? "1" : "",
+    SECRET_URL: `http://localhost:${server.port}${secret_url}`,
+  };
+  if (args.print_command) {
+    const envstr = Object.entries(env)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(" ");
+    console.log(`\n${envstr} ${args.python} worker.py\n`);
+  } else {
+    Bun.spawn([args.python.toString(), `${__dirname}/worker.py`], {
+      cwd: __dirname,
+      env: {
+        ...process.env,
+        ...env,
+      },
+      onExit: () => {
+        server.stop(true);
+      },
+    });
+  }
 } else {
   console.log("not spawning worker: no --python");
 }

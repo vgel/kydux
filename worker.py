@@ -15,6 +15,8 @@ SECRET_URL = os.environ["SECRET_URL"]
 MODEL_NAME = "meta-llama/Meta-Llama-3-8B"
 CVEC = "vectors/kpunk_binglish.gguf"
 MIN_CVEC, MAX_CVEC = -0.7, 1.5
+# CVEC = "vectors/prophecies_analyses.gguf"
+# MIN_CVEC, MAX_CVEC = -0.7, 0.7
 SINUISOID_SCALE = 100
 CONTROL_LAYERS = list(range(15, 28))
 INITIAL_TEXT = "Bing is"
@@ -29,12 +31,13 @@ class Token:
 
 class Generator:
     def __init__(self):
+        import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from repeng import ControlVector, ControlModel
 
         self.tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
         self.tokenizer.pad_token_id = 0
-        model = AutoModelForCausalLM.from_pretrained(MODEL_NAME)
+        model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=torch.float16)
         model = model.to("cuda:0")
         self.model = ControlModel(model, CONTROL_LAYERS)
         self.vector = ControlVector.import_gguf(CVEC)
@@ -101,4 +104,8 @@ if __name__ == "__main__":
     while True:
         token = generator.next()
         message = json.dumps(dataclasses.asdict(token))
-        requests.post(SECRET_URL, data=message).raise_for_status()
+        try:
+            requests.post(SECRET_URL, data=message).raise_for_status()
+        except requests.RequestException as e:
+            print(message)
+            print(e)

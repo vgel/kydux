@@ -41,7 +41,7 @@ if (!n_context) {
 let secret_url: string;
 if (args.secret_url_file) {
   const secret_url_file: string = args.secret_url_file.toString();
-  secret_url = await Bun.file(secret_url_file).text();
+  secret_url = (await Bun.file(secret_url_file).text()).trim();
 } else {
   secret_url = `/${crypto.randomBytes(32).toString("hex")}`;
 }
